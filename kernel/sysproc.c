@@ -75,6 +75,31 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+	uint64 start;
+	int npage;
+	uint64 maskaddr;
+	unsigned int bitmask;
+	struct proc* p;
+
+	argaddr(0, &start);
+	argint(1, &npage);
+	argaddr(2, &maskaddr);
+	//set the max page to 32 for bitmask is 32 bit.
+	if (npage > 32) {
+		npage = 32;
+	}
+	p = myproc();
+	bitmask = 0;
+	for (int i = 0; i < npage; i++) {
+		pte_t *pte = walk(p->pagetable, start + i * PGSIZE, 0);
+		if (*pte & PTE_A) {
+			bitmask |= (1 << i);
+		}
+		*pte &= ~PTE_A;
+	}
+	if (copyout(p->pagetable, maskaddr, (void*)&bitmask, sizeof(bitmask)) < 0) {
+		return -1;
+	}
   return 0;
 }
 #endif
@@ -100,3 +125,4 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
