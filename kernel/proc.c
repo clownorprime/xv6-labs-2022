@@ -132,6 +132,12 @@ found:
     return 0;
   }
 
+  if((p->trapbackup = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -139,6 +145,11 @@ found:
     release(&p->lock);
     return 0;
   }
+
+  p->handler = -1;
+  p->passed = 0;
+  p->ticks = -1;
+  p->inalarm = 0;
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -158,6 +169,9 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  if(p->trapbackup)
+    kfree((void*)p->trapbackup);
+  p->trapbackup = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -311,6 +325,12 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
+
+  np->ticks = p->ticks;
+  np->handler = p->handler;
+  np->passed = p->passed;
+  *(np->trapbackup) = *(p->trapbackup);
+  np->inalarm = p->inalarm;
 
   release(&np->lock);
 

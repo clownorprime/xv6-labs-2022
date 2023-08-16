@@ -77,8 +77,17 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2) {
+      // prevent from alarm handler called more than once.
+      if (!(p->handler == 0 && p->ticks == 0) && ++p->passed == p->ticks && p->inalarm == 0) {
+        p->inalarm = 1;
+        memmove(p->trapbackup, p->trapframe, sizeof(struct trapframe));
+        p->trapframe->epc = p->handler;
+        p->passed = 0;
+        usertrapret();
+      }
     yield();
+  }
 
   usertrapret();
 }
