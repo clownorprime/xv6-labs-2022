@@ -33,6 +33,7 @@ barrier()
   pthread_mutex_lock(&bstate.barrier_mutex);
   bstate.nthread++;
   // if we user while then if the thread is weaking up, then it may see bstate.nthread == 0, so it will continue call pthread_cond_wait, then the program will block forever.
+  // all the thread execpt last one, will call pthread wait and until the last thread will call pthread_cond_broadcast and will wake up other sleep threads, other threads will just leave and do nothing.
   if(bstate.nthread < nthread) {
       pthread_cond_wait(&bstate.barrier_cond, &bstate.barrier_mutex);
   } else {
