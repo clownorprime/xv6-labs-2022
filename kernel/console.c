@@ -178,6 +178,7 @@ consoleintr(int c)
   release(&cons.lock);
 }
 
+//This code configures the UART to generate a receive interrupt when the UART receives each byte of input.
 void
 consoleinit(void)
 {
