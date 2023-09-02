@@ -29,7 +29,6 @@ simpletest()
 
   int pid = fork();
   if(pid < 0){
-    printf("fork() failed\n");
     exit(-1);
   }
 
@@ -39,7 +38,7 @@ simpletest()
   wait(0);
 
   if(sbrk(-sz) == (char*)0xffffffffffffffffL){
-    printf("sbrk(-%d) failed\n", sz);
+	printf("hello world\n");
     exit(-1);
   }
 
@@ -82,6 +81,7 @@ threetest()
       }
       for(char *q = p; q < p + (sz/5)*4; q += 4096){
         if(*(int*)q != getpid()){
+		  printf("q = %p, *(int*)q = %d, getpid() = %d\n", q, *(int*)q, getpid());
           printf("wrong content\n");
           exit(-1);
         }
@@ -104,6 +104,7 @@ threetest()
 
   for(char *q = p; q < p + sz; q += 4096){
     if(*(int*)q != getpid()){
+	  printf("*(int*)q = %d, getpid() = %d", *(int*)q, getpid());
       printf("wrong content\n");
       exit(-1);
     }

@@ -9,7 +9,7 @@
 struct spinlock tickslock;
 uint ticks;
 
-extern char trampoline[], uservec[], userret[];
+extern char trampoline[], uservec[], userret[], pagerefcount[];
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
@@ -29,6 +29,55 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+
+uint64 cow_help(uint64 pageaddr) 
+{
+  struct proc* p;
+  pte_t *pte;
+  uint64 pa;
+  char *mem;
+  uint flags;
+
+  p = myproc();
+  pte = walk(p->pagetable, pageaddr, 0);
+  pa = PTE2PA(*pte);
+  flags = PTE_FLAGS(*pte);
+
+  if (!(flags & PTE_COW)) {
+	  return 0;
+  }
+
+  if (get_rc(pa) == 2) {
+	  minus_rc(pa);
+	  if ((mem = kalloc()) == 0) {
+		  setkilled(p);
+	  } else {
+		  if (flags & PTE_LASTW) {
+			  flags |= PTE_W;
+			  flags &= ~PTE_LASTW;
+			  *pte |= PTE_W;
+			  *pte &= ~PTE_LASTW;
+		  }
+		  flags &= ~PTE_COW;
+		  *pte &= ~PTE_COW;
+		  memmove((void*)mem, (void*)pa, PGSIZE);
+		  uvmunmap(p->pagetable, pageaddr, 1, 0);
+		  if (mappages(p->pagetable, pageaddr, PGSIZE, (uint64)mem, flags) < 0) {
+			  kfree(mem);
+			  panic("mappages error");
+			  return 0;
+		  }
+	  }
+	  return (uint64)mem;
+  } else if (get_rc(pa) == 1){
+	  if (flags & PTE_LASTW) {
+		  *pte |= PTE_W;
+		  *pte &= ~PTE_COW;
+		  *pte &= ~PTE_LASTW;
+	  }
+  }
+  return 0;
+}
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -65,7 +114,13 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  } else if (r_scause() == 15) { 		//store page fault.
+	  uint64 addr, pageaddr;
+
+	  addr = r_stval();
+	  pageaddr = PGROUNDDOWN(addr);
+	  cow_help(pageaddr);
+  }else if((which_dev = devintr()) != 0){
     // ok
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);

@@ -9,6 +9,7 @@
 #include "riscv.h"
 #include "defs.h"
 
+#define MAXNUMPAGE 0x8800
 void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
@@ -23,6 +24,40 @@ struct {
   struct run *freelist;
 } kmem;
 
+
+uint pagerefcount[MAXNUMPAGE];
+
+void
+add_rc(uint64 pa) 
+{
+  int pageindex;
+  
+  pageindex = pa / PGSIZE;
+  acquire(&kmem.lock);
+  pagerefcount[pageindex]++;
+  release(&kmem.lock);
+}
+
+void 
+minus_rc(uint64 pa) 
+{
+  int pageindex;
+  
+  pageindex = pa / PGSIZE;
+  acquire(&kmem.lock);
+  pagerefcount[pageindex]--;
+  release(&kmem.lock);
+}
+
+uint
+get_rc(uint64 pa) 
+{
+  int pageindex;
+
+  pageindex = pa / PGSIZE;
+  return pagerefcount[pageindex];
+}
+
 void
 kinit()
 {
@@ -35,8 +70,10 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
+	pagerefcount[(uint64)p / PGSIZE] = 1;
     kfree(p);
+  }
 }
 
 // Free the page of physical memory pointed at by pa,
@@ -50,6 +87,11 @@ kfree(void *pa)
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
+ 
+  minus_rc((uint64)pa);
+  if (get_rc((uint64)pa) > 0) {
+	  return;
+  }
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -78,5 +120,6 @@ kalloc(void)
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
+  add_rc((uint64)r);
   return (void*)r;
 }
