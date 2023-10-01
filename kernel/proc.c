@@ -142,6 +142,7 @@ found:
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
+  // If I type "echo hello" in the shell, the kernel will alloc a process, so we will get to here. And call swtch to call forkret to start executing the process's code.
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
@@ -464,6 +465,7 @@ scheduler(void)
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
+        // swtch will jump into here.
         c->proc = 0;
       }
       release(&p->lock);
@@ -494,6 +496,7 @@ sched(void)
     panic("sched interruptible");
 
   intena = mycpu()->intena;
+  // swtch from process kernel thread to kernel swtch thread.
   swtch(&p->context, &mycpu()->context);
   mycpu()->intena = intena;
 }

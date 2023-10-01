@@ -181,6 +181,7 @@ wsect(uint sec, void *buf)
     die("write");
 }
 
+// write inode blocks
 void
 winode(uint inum, struct dinode *ip)
 {
@@ -231,6 +232,7 @@ ialloc(ushort type)
   return inum;
 }
 
+// write bitmap blocks.
 void
 balloc(int used)
 {
@@ -249,6 +251,7 @@ balloc(int used)
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
+// write inode blocks and data blocks
 void
 iappend(uint inum, void *xp, int n)
 {

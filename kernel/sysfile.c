@@ -230,7 +230,7 @@ sys_unlink(void)
 
   ip->nlink--;
   iupdate(ip);
-  iunlockput(ip);
+  iunlockput(ip);   // finally call iput to free the inode. 
 
   end_op();
 

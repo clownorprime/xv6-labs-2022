@@ -112,6 +112,7 @@ exec(char *path, char **argv)
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
   // value, which goes in a0.
+  // a1 keeps the address argv[] pointers.
   p->trapframe->a1 = sp;
 
   // Save program name for debugging.
