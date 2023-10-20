@@ -190,6 +190,7 @@ write_log(void)
   }
 }
 
+//when to write the bitmap and inode
 static void
 commit()
 {

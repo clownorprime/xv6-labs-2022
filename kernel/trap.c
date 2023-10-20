@@ -47,7 +47,7 @@ uint64 cow_help(uint64 pageaddr)
 	  return 0;
   }
 
-  if (get_rc(pa) == 2) {
+  if (get_rc(pa) >= 2) {
 	  minus_rc(pa);
 	  if ((mem = kalloc()) == 0) {
 		  setkilled(p);
@@ -75,7 +75,7 @@ uint64 cow_help(uint64 pageaddr)
 		  *pte &= ~PTE_COW;
 		  *pte &= ~PTE_LASTW;
 	  }
-  }
+  } 
   return 0;
 }
 //
