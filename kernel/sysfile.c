@@ -503,3 +503,36 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void) 
+{
+    struct proc* p = myproc();
+    uint64 addr;
+    int len;
+    int prot;
+    int flags;
+    int fd;
+    int offset;
+
+    argaddr(0, &addr);
+    printf("addr is %p\n", addr);
+    argint(1, &len);
+    argint(2, &prot);
+    argint(3, &flags);
+    argint(4, &fd);
+    argint(5, &offset);
+    p->mmap_addr = (void*)addr;
+    p->mmap_len = len;
+    p->mmap_prot = prot;
+    p->mmap_flags = flags;
+    p->mmap_fd = fd;
+    p->mmap_offset = offset;
+    return 0;
+}
+
+uint64
+sys_munmap(void)
+{
+    return -1;
+}
