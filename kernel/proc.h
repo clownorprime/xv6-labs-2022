@@ -79,6 +79,16 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+struct VMA {
+    struct file *f;
+    int flags;
+    int used;
+    int prot;
+    int isfault;            // has been caused page fault.
+    uint64 vm_start;
+    uint64 vm_end;
+};
+
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -104,12 +114,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-
   // used in mmap
-  void* mmap_addr;
-  int mmap_len;
-  int mmap_prot;
-  int mmap_flags;
-  int mmap_fd;
-  int mmap_offset;
+  uint64 mmap_start_addr;
+  struct VMA mmap_vma[MMAPARRAYSIZE];
 };

@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -210,9 +211,25 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
+  struct proc* p = myproc();
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
-  uvmfree(pagetable, sz);
+  // there is a mmap region.
+  if (p->mmap_start_addr != 0) {
+      uvmfree(pagetable, p->mmap_start_addr);
+      for (int i = 0; i < MMAPARRAYSIZE; i++) {
+          if (p->mmap_vma[i].isfault == 1) {
+              for (uint64 va = p->mmap_vma[i].vm_start; va <= p->mmap_vma[i].vm_end; va += PGSIZE) {
+                  if (walk(pagetable, va, 0) == 0) {
+                      continue;
+                  }
+                  uvmunmap(pagetable, va, 1, 0);
+              }
+          }
+      }
+  } else {
+      uvmfree(pagetable, sz);
+  }
 }
 
 // a user program that calls exec("/init")
@@ -289,7 +306,10 @@ fork(void)
   }
 
   // Copy user memory from parent to child.
-  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+  if (p->mmap_start_addr == 0) {
+      p->mmap_start_addr = p->sz;
+  }
+  if(uvmcopy(p->pagetable, np->pagetable, p->mmap_start_addr) < 0){
     freeproc(np);
     release(&np->lock);
     return -1;
@@ -308,6 +328,13 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  for (i = 0; i < MMAPARRAYSIZE; i++) {
+      if (p->mmap_vma[i].used == 1) {
+        memmove((void*)&np->mmap_vma[i], (void*)&p->mmap_vma[i], sizeof(p->mmap_vma[i]));
+        addref(p->mmap_vma[i].f, 1);
+        uvmmmapcopy(p->pagetable, np->pagetable, p->mmap_vma[i].vm_start, p->mmap_vma[i].vm_end);
+      }
+  }
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
@@ -358,6 +385,26 @@ exit(int status)
       fileclose(f);
       p->ofile[fd] = 0;
     }
+  }
+
+  // munmap all the pages
+  for (int i = 0; i < MMAPARRAYSIZE; i++) {
+      if (p->mmap_vma[i].used == 1) {
+          struct VMA vma = p->mmap_vma[i];
+          struct file *f = vma.f;
+          uint len = PGROUNDUP(vma.vm_end - vma.vm_start);
+          uint npages = len / PGSIZE;
+          addref(f, -1);
+          if (vma.flags & MAP_SHARED) {
+              filewrite(f, vma.vm_start, len);
+          }
+          if (vma.isfault == 1) {
+            uvmunmap(p->pagetable, vma.vm_start, npages, 1);
+          }
+          vma.isfault = 0;
+          p->mmap_vma[i].used = 0;
+
+      }
   }
 
   begin_op();

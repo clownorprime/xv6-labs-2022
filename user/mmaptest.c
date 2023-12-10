@@ -184,8 +184,10 @@ mmap_test(void)
     char b;
     if (read(fd, &b, 1) != 1)
       err("read (1)");
-    if (b != 'Z')
+    if (b != 'Z') {
+        printf("b = %c\n", b);
       err("file does not contain modifications");
+    }
   }
   if (close(fd) == -1)
     err("close");
@@ -227,8 +229,9 @@ mmap_test(void)
   close(fd2);
   unlink("mmap2");
 
-  if(memcmp(p1, "12345", 5) != 0)
+  if(memcmp(p1, "12345", 5) != 0) {
     err("mmap1 mismatch");
+  }
   if(memcmp(p2, "67890", 5) != 0)
     err("mmap2 mismatch");
 

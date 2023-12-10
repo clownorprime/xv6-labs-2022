@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -65,8 +66,42 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if (r_scause() == 13) {
-      printf("hello world\n");
+  } else if (r_scause() == 0xd) {
+      uint64 addr = r_stval();
+      int index = 0;
+      // iterator the whole VMA array to find the right vma
+      for (int i = 0; i < MMAPARRAYSIZE; i++) {
+          if (p->mmap_vma[i].used == 1) {
+              if (p->mmap_vma[i].vm_start <= addr && p->mmap_vma[i].vm_end > addr) {
+                  index = i;
+                  break;
+              }
+          }
+      }
+      struct VMA vma = p->mmap_vma[index];
+      setoffzero(vma.f);
+      for (int i = vma.vm_start; i < vma.vm_end; i += PGSIZE) {
+          void *pa;
+          if ((pa = kalloc()) == 0) {
+              panic("out of memory");
+          }
+          memset(pa, 0, PGSIZE);
+          int flag = PTE_V | PTE_U;
+          if (vma.prot && PROT_READ) {
+              flag |= PTE_R;
+          }
+          if (vma.prot && PROT_WRITE) {
+              flag |= PTE_W;
+          }
+          if (vma.prot && PROT_EXEC) {
+              flag |= PTE_X;
+          }
+          mappages(p->pagetable, i, PGSIZE, (uint64)pa, flag);
+          fileread(vma.f, i, PGSIZE);
+      }
+      vma.isfault = 1;
+      p->mmap_vma[index] = vma;
+      setoffzero(vma.f);
   }else if((which_dev = devintr()) != 0){
     // ok
   } else {

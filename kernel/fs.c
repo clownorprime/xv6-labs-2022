@@ -483,8 +483,10 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
     uint addr = bmap(ip, off/BSIZE);
     if(addr == 0)
       break;
+    // bread: read data from disk, write to buffer bp
     bp = bread(ip->dev, addr);
     m = min(n - tot, BSIZE - off%BSIZE);
+    // then copy from kernel to user process address.
     if(either_copyout(user_dst, dst, bp->data + (off % BSIZE), m) == -1) {
       brelse(bp);
       tot = -1;

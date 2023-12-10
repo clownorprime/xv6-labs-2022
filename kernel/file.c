@@ -180,3 +180,11 @@ filewrite(struct file *f, uint64 addr, int n)
   return ret;
 }
 
+void setoffzero(struct file* f) {
+    f->off = 0;
+}
+
+void addref(struct file *f, int add) {
+    f->ref += add;
+}
+

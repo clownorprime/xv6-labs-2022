@@ -514,25 +514,83 @@ sys_mmap(void)
     int flags;
     int fd;
     int offset;
+    int index = 0;
 
     argaddr(0, &addr);
-    printf("addr is %p\n", addr);
     argint(1, &len);
     argint(2, &prot);
     argint(3, &flags);
     argint(4, &fd);
     argint(5, &offset);
-    p->mmap_addr = (void*)addr;
-    p->mmap_len = len;
-    p->mmap_prot = prot;
-    p->mmap_flags = flags;
-    p->mmap_fd = fd;
-    p->mmap_offset = offset;
-    return 0;
+    struct file *f = p->ofile[fd];
+    if ((flags == MAP_SHARED) && !f->readable && (prot & PROT_READ)) {
+        return -1;
+    }
+    if ((flags == MAP_SHARED) && !f->writable && (prot & PROT_WRITE)) {
+        return -1;
+    }
+    for (int i = 0; i < MMAPARRAYSIZE; i++) {
+        if (p->mmap_vma[i].used != 1) {
+            p->mmap_vma[i].used = 1;
+            index = i;
+            break;
+        }
+    }
+    // file is not readable, but mmap try to read the file.
+    p->ofile[fd]->ref++;
+    p->mmap_vma[index].vm_start = PGROUNDUP(p->sz);
+    p->mmap_vma[index].vm_end = PGROUNDUP(p->sz) + PGROUNDUP(len);
+    p->mmap_vma[index].f = p->ofile[fd];
+    p->mmap_vma[index].flags = flags;
+    p->mmap_vma[index].prot = prot;
+    if (p->mmap_start_addr == 0) {
+        p->mmap_start_addr = p->sz;
+    }
+    uint64 ret =p->sz;
+    p->sz += PGROUNDUP(len);
+    return ret;
 }
 
 uint64
 sys_munmap(void)
 {
-    return -1;
+    uint64 addr;
+    int len;
+    int npages;
+    struct proc* p = myproc();
+
+    argaddr(0, &addr);
+    argint(1, &len);
+    int index = 0;
+    for (int i = 0; i < MMAPARRAYSIZE; i++) {
+        if (p->mmap_vma[i].used) {
+            if (addr >= p->mmap_vma[i].vm_start && addr < p->mmap_vma[i].vm_end) {
+                index = i;
+                break;
+            }
+        }
+    }
+    struct VMA vma = p->mmap_vma[index];
+    if (vma.flags & MAP_SHARED) {
+        filewrite(vma.f, addr, len);
+    }
+    npages = PGROUNDDOWN(len) / PGSIZE;
+    if (p->mmap_vma[index].isfault == 1) {
+        uvmunmap(p->pagetable, addr, npages, 0);
+    }
+    // if munmap unmap all the pages that mmaps, it should decrease the ref count of the file.
+    if (addr <= vma.vm_start && addr + len >= vma.vm_end) {
+        addref(vma.f, -1);
+        vma.used = 0;
+        vma.isfault = 0;
+    } else {
+        if (addr + len >= vma.vm_start) {
+            vma.vm_start = PGROUNDDOWN(addr + len);
+        }
+        if (addr + len >= vma.vm_end) {
+            vma.vm_end = PGROUNDUP(addr);
+        }
+    }
+    p->mmap_vma[index] = vma;
+    return 0;
 }
