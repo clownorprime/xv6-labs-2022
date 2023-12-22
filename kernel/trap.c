@@ -47,6 +47,7 @@ uint64 cow_help(uint64 pageaddr)
 	  return 0;
   }
 
+  //if a parent forks two child, the reference count of pa maybe greater than 2.
   if (get_rc(pa) >= 2) {
 	  minus_rc(pa);
 	  if ((mem = kalloc()) == 0) {

@@ -478,6 +478,9 @@ scheduler(void)
 // be proc->intena and proc->noff, but that would
 // break in the few places where a lock is held but
 // there's no process.
+
+
+// notes: only have p->lock and no other locks, because it may cause dead lock.
 void
 sched(void)
 {
@@ -485,7 +488,7 @@ sched(void)
   struct proc *p = myproc();
 
   if(!holding(&p->lock))
-    panic("sched p->lock");
+    panic("sched p->lock");         
   if(mycpu()->noff != 1)
     panic("sched locks");
   if(p->state == RUNNING)
@@ -503,7 +506,8 @@ void
 yield(void)
 {
   struct proc *p = myproc();
-  acquire(&p->lock);
+  // why we must hold process lock, because if we are not, after we set process state to runable, and then another cpu found process runable, then the process may run in another cpu.
+  acquire(&p->lock);  
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
